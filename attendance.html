@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Academic Attendance Tracker</title>
+
+<style>
+:root {
+  --sun:#ffdede; --mon:#fff3cd; --tue:#e7f1ff;
+  --wed:#e7ffe7; --thu:#f1e7ff; --fri:#ffe7f1; --sat:#eeeeee;
+}
+
+body {
+  background:#0f172a;
+  color:#e5e7eb;
+  font-family: Inter, system-ui, sans-serif;
+  padding: 20px;
+}
+
+h1 { text-align:center; }
+
+#attendance {
+  text-align:center;
+  font-size:20px;
+  margin-bottom:15px;
+  font-weight:bold;
+}
+
+.calendar {
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.day {
+  display:grid;
+  grid-template-columns:auto 120px repeat(6,1fr) 60px 90px 90px;
+  gap:6px;
+  padding:10px;
+  border-radius:12px;
+  color:#111827;
+}
+
+.day.disabled { opacity:.45; }
+
+.period {
+  background:#ffffffaa;
+  border-radius:8px;
+  text-align:center;
+  padding:8px 0;
+  cursor:pointer;
+}
+
+.period.absent { background:#ef4444; color:white; }
+
+.day-btn {
+  background:#111827;
+  color:#e5e7eb;
+  border-radius:8px;
+  padding:6px;
+  font-size:13px;
+  cursor:pointer;
+  text-align:center;
+}
+
+.day-btn.disabled { opacity:.4; pointer-events:none; }
+
+.phase {
+  grid-column:2 / -1;
+  font-size:13px;
+  margin-top:4px;
+  color:#1f2937;
+}
+
+.row-att {
+  font-weight:bold;
+  font-size:13px;
+  text-align:center;
+}
+
+.sun{background:var(--sun)} .mon{background:var(--mon)}
+.tue{background:var(--tue)} .wed{background:var(--wed)}
+.thu{background:var(--thu)} .fri{background:var(--fri)}
+.sat{background:var(--sat)}
+</style>
+</head>
+
+<body>
+
+<h1> Academic Attendance Tracker</h1>
+<div id="attendance">Attendance: 100%</div>
+<div class="calendar" id="calendar"></div>
+
+<script>
+const PERIODS = 6;
+const STORAGE_KEY = "attendance-fixed";
+
+const weekdayClass = ["sun","mon","tue","wed","thu","fri","sat"];
+const weekdayShort = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+/*  COMPLETE ACADEMIC CALENDAR */
+const phases = [
+  ["I Unit of Instructions","2025-12-26","2026-01-10"],
+  ["Assignment-I","2026-01-19","2026-01-23"],
+  ["II Unit of Instructions","2026-01-19","2026-02-04"],
+  ["Revision & Assignment-II","2026-02-05","2026-02-10"],
+  ["I Mid Examinations","2026-02-11","2026-02-16"],
+  ["III Unit of Instructions","2026-02-17","2026-03-05"],
+  ["Assignment-III","2026-03-06","2026-03-11"],
+  ["IV Unit of Instructions","2026-03-06","2026-03-23"],
+  ["Assignment-IV","2026-03-24","2026-03-28"],
+  ["V Unit of Instructions","2026-03-24","2026-04-08"],
+  ["Revision & Assignment-V","2026-04-09","2026-04-14"],
+  ["II Mid Examinations","2026-04-15","2026-04-20"],
+  ["Revision / Practicals","2026-04-21","2026-04-25"],
+  ["End Examinations","2026-04-27","2026-05-09"]
+];
+
+let data = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+const calendar = document.getElementById("calendar");
+const attendanceEl = document.getElementById("attendance");
+
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+function inRange(d,s,e){ return d>=s && d<=e; }
+function getPhases(date){
+  return phases.filter(p=>inRange(date,p[1],p[2])).map(p=>p[0]);
+}
+
+/* generate all academic dates */
+let dates = new Set();
+phases.forEach(p=>{
+  let d=new Date(p[1]),e=new Date(p[2]);
+  while(d<=e){
+    dates.add(d.toISOString().slice(0,10));
+    d.setDate(d.getDate()+1);
+  }
+});
+
+let runningTotal = 0;
+let runningAbsent = 0;
+
+[...dates].sort().forEach(date=>{
+  const d=new Date(date);
+
+  if(!data[date]){
+    data[date]={ holiday:d.getDay()===0, absent:Array(PERIODS).fill(false) };
+  }
+
+  const day=document.createElement("div");
+  day.className=`day ${weekdayClass[d.getDay()]}`;
+  if(data[date].holiday) day.classList.add("disabled");
+
+  const holiday=document.createElement("input");
+  holiday.type="checkbox";
+  holiday.checked=data[date].holiday;
+  holiday.onchange=()=>{ data[date].holiday=holiday.checked; save(); location.reload(); };
+  day.appendChild(holiday);
+
+  const label=document.createElement("div");
+  label.textContent=date;
+  label.style.fontWeight="bold";
+  day.appendChild(label);
+
+  for(let i=0;i<PERIODS;i++){
+    const p=document.createElement("div");
+    p.className="period";
+    p.textContent=i+1;
+    if(data[date].absent[i]) p.classList.add("absent");
+    p.onclick=()=>{
+      if(data[date].holiday) return;
+      data[date].absent[i]=!data[date].absent[i];
+      save(); location.reload();
+    };
+    day.appendChild(p);
+  }
+
+  const wd=document.createElement("div");
+  wd.textContent=weekdayShort[d.getDay()];
+  wd.style.fontWeight="bold";
+  day.appendChild(wd);
+
+  const btn=document.createElement("div");
+  btn.className="day-btn";
+  btn.textContent=data[date].absent.every(v=>v)?"Clear":"Absent All";
+  btn.onclick=()=>{
+    const all=data[date].absent.every(v=>v);
+    data[date].absent=Array(PERIODS).fill(!all);
+    save(); location.reload();
+  };
+  day.appendChild(btn);
+
+  /*  FUTURE SIMULATION ATTENDANCE */
+  let rowAtt="-";
+  if(!data[date].holiday){
+    runningTotal+=PERIODS;
+    runningAbsent+=data[date].absent.filter(Boolean).length;
+    rowAtt=((runningTotal-runningAbsent)/runningTotal*100).toFixed(2)+"%";
+  }
+
+  const ra=document.createElement("div");
+  ra.className="row-att";
+  ra.textContent=rowAtt;
+  day.appendChild(ra);
+
+  const phase=document.createElement("div");
+  phase.className="phase";
+  const ps=getPhases(date);
+  if(ps.length) phase.textContent=`(${ps.join(", ")})`;
+  day.appendChild(phase);
+
+  calendar.appendChild(day);
+});
+
+/* overall simulated attendance */
+const overall = runningTotal
+  ? ((runningTotal-runningAbsent)/runningTotal*100).toFixed(2)
+  : 100;
+attendanceEl.textContent=`Attendance: ${overall}%`;
+</script>
+
+</body>
+</html>
